@@ -16,7 +16,7 @@ def main(gensim_model_path, out_dir, min_count=None):
     if min_count is None:
         min_count = gensim_model.min_count
 
-    for string in gensim_model.vocab:
+    for string in gensim_model.wv.vocab:
         vocab = gensim_model.wv.vocab[string]
         freq, idx = vocab.count, vocab.index
         if freq < min_count:
