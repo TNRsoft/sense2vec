@@ -34,7 +34,7 @@ class Corpus(object):
             key = hash_string(word)
             doc_counts.inc(key, 1)
             doc_strings[key] = word
- 
+
         n = 0
         for key, count in doc_counts:
             self.counts.inc(key, count)
@@ -90,7 +90,7 @@ def main(in_dir, out_loc, negative=5, n_workers=4, window=5, size=128, min_count
         with io.open(text_loc, 'r', encoding='utf8') as file_:
             text = file_.read()
         total_sents += text.count('\n')
-        total_words += corpus.count_doc(text.split())  
+        total_words += corpus.count_doc(text.split())
         logger.info("PROGRESS: at batch #%i, processed %i words, keeping %i word types",
                     text_no, total_words, len(corpus.strings))
     model.corpus_count = total_sents
@@ -100,11 +100,10 @@ def main(in_dir, out_loc, negative=5, n_workers=4, window=5, size=128, min_count
     model.scale_vocab()
     model.finalize_vocab()
     model.iter = nr_iter
-    model.train(corpus)
+    model.train(corpus, total_words=model.corpus_count, epochs=model.iter)
 
     model.save(out_loc)
 
 
 if __name__ == '__main__':
     plac.call(main)
-

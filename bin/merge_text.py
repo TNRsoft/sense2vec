@@ -6,6 +6,7 @@ from toolz import partition
 from os import path
 import os
 import re
+import codecs
 
 import spacy.en
 from preshed.counter import PreshCounter
@@ -47,10 +48,12 @@ def parallelize(func, iterator, n_jobs, extra):
     return Parallel(n_jobs=n_jobs)(delayed(func)(*(item + extra)) for item in iterator)
 
 
-def iter_comments(loc):
-    with bz2.BZ2File(loc) as file_:
-        for i, line in enumerate(file_):
-            yield ujson.loads(line)['body']
+def iter_comments(input_dir):
+    for item in os.listdir(input_dir):
+        if item.endswith(".txt"):
+            print ("processing " + item)
+            with codecs.open(str(input_dir + '/' + item), 'rb', 'utf-8') as input_file:
+                yield input_file.read()
 
 
 pre_format_re = re.compile(r'^[\`\*\~]')
@@ -76,19 +79,17 @@ def load_and_transform(batch_id, in_loc, out_dir):
             for byte_string in Doc.read_bytes(in_file):
                 doc = Doc(nlp.vocab).from_bytes(byte_string)
                 doc.is_parsed = True
-                out_file.write(transform_doc(doc)) 
+                out_file.write(transform_doc(doc))
 
 
 def parse_and_transform(batch_id, input_, out_dir):
     out_loc = path.join(out_dir, '%d.txt' % batch_id)
     if path.exists(out_loc):
         return None
-    print('Batch', batch_id)
     nlp = spacy.en.English()
     nlp.matcher = None
     with io.open(out_loc, 'w', encoding='utf8') as file_:
-        for text in input_:
-            file_.write(transform_doc(nlp(strip_meta(text))))
+        file_.write(transform_doc(nlp(strip_meta(input_))))
 
 
 def transform_doc(doc):
@@ -119,22 +120,22 @@ def represent_word(word):
 
 
 @plac.annotations(
-    in_loc=("Location of input file"),
-    out_dir=("Location of input file"),
+    in_loc=("Location of input folder"),
+    out_dir=("Location of output folder"),
     n_workers=("Number of workers", "option", "n", int),
     load_parses=("Load parses from binary", "flag", "b"),
 )
-def main(in_loc, out_dir, n_workers=4, load_parses=False):
+def main(in_loc, out_dir, n_workers=2, load_parses=False):
     if not path.exists(out_dir):
         path.join(out_dir)
     if load_parses:
         jobs = [path.join(in_loc, fn) for fn in os.listdir(in_loc)]
         do_work = load_and_transform
     else:
-        jobs = partition(200000, iter_comments(in_loc))
+        jobs = iter_comments(in_loc)
         do_work = parse_and_transform
     parallelize(do_work, enumerate(jobs), n_workers, [out_dir])
- 
+
 
 if __name__ == '__main__':
     plac.call(main)
