@@ -125,7 +125,7 @@ def represent_word(word):
     n_workers=("Number of workers", "option", "n", int),
     load_parses=("Load parses from binary", "flag", "b"),
 )
-def main(in_loc, out_dir, n_workers=2, load_parses=False):
+def main(in_loc, out_dir, n_workers=3, load_parses=False):
     if not path.exists(out_dir):
         path.join(out_dir)
     if load_parses:
