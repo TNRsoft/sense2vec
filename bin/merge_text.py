@@ -7,6 +7,7 @@ from os import path
 import os
 import re
 import codecs
+from pymongo import MongoClient
 
 import spacy.en
 from preshed.counter import PreshCounter
@@ -19,6 +20,10 @@ try:
 except ImportError:
     import json
 
+MONGO_ADDRESS = "192.168.1.101"
+MONGO_PORT = 27017
+mongo_client = MongoClient(config.MONGO_ADDRESS,config.MONGO_PORT)
+tagged_text = mongo_client.sense2vec.tagged_text
 
 LABELS = {
     'ENT': 'ENT',
@@ -48,12 +53,11 @@ def parallelize(func, iterator, n_jobs, extra):
     return Parallel(n_jobs=n_jobs)(delayed(func)(*(item + extra)) for item in iterator)
 
 
-def iter_comments(input_dir):
-    for item in os.listdir(input_dir):
-        if item.endswith(".txt"):
-            print ("processing " + item)
-            with codecs.open(str(input_dir + '/' + item), 'rb', 'utf-8') as input_file:
-                yield input_file.read()
+def iter_comments():
+    raw_text = mongo_client.sense2vec.raw_text
+    for i, item in enumerate(raw_text.find({})):
+        print ("processing record #" + str(i+1))
+            yield item['text']
 
 
 pre_format_re = re.compile(r'^[\`\*\~]')
@@ -83,13 +87,9 @@ def load_and_transform(batch_id, in_loc, out_dir):
 
 
 def parse_and_transform(batch_id, input_, out_dir):
-    out_loc = path.join(out_dir, '%d.txt' % batch_id)
-    if path.exists(out_loc):
-        return None
     nlp = spacy.en.English()
     nlp.matcher = None
-    with io.open(out_loc, 'w', encoding='utf8') as file_:
-        file_.write(transform_doc(nlp(strip_meta(input_))))
+    tagged_text.insert_one({'text': transform_doc(nlp(strip_meta(input_)))})
 
 
 def transform_doc(doc):
@@ -126,14 +126,8 @@ def represent_word(word):
     load_parses=("Load parses from binary", "flag", "b"),
 )
 def main(in_loc, out_dir, n_workers=4, load_parses=False):
-    if not path.exists(out_dir):
-        path.join(out_dir)
-    if load_parses:
-        jobs = [path.join(in_loc, fn) for fn in os.listdir(in_loc)]
-        do_work = load_and_transform
-    else:
-        jobs = iter_comments(in_loc)
-        do_work = parse_and_transform
+    jobs = iter_comments()
+    do_work = parse_and_transform
     parallelize(do_work, enumerate(jobs), n_workers, [out_dir])
 
 
