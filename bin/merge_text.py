@@ -23,6 +23,7 @@ except ImportError:
 MONGO_ADDRESS = "192.168.1.101"
 MONGO_PORT = 27017
 mongo_client = MongoClient(config.MONGO_ADDRESS,config.MONGO_PORT)
+db = mongo_client.sense2vec
 
 LABELS = {
     'ENT': 'ENT',
@@ -53,7 +54,7 @@ def parallelize(func, iterator, n_jobs, extra):
 
 
 def iter_comments(in_collection):
-    raw_text = mongo_client.sense2vec[in_collection]
+    raw_text = db[in_collection]
     for i, item in enumerate(raw_text.find({})):
         print ("processing record #" + str(i+1))
             yield item['text']
@@ -86,7 +87,7 @@ def load_and_transform(batch_id, in_loc, out_dir):
 
 
 def parse_and_transform(batch_id, input_, out_collection):
-    tagged_text = mongo_client.sense2vec[out_collection]
+    tagged_text = db[out_collection]
     nlp = spacy.en.English()
     nlp.matcher = None
     tagged_text.insert_one({'text': transform_doc(nlp(strip_meta(input_)))})
