@@ -23,7 +23,6 @@ except ImportError:
 MONGO_ADDRESS = "192.168.1.101"
 MONGO_PORT = 27017
 mongo_client = MongoClient(config.MONGO_ADDRESS,config.MONGO_PORT)
-tagged_text = mongo_client.sense2vec.tagged_text
 
 LABELS = {
     'ENT': 'ENT',
@@ -53,8 +52,8 @@ def parallelize(func, iterator, n_jobs, extra):
     return Parallel(n_jobs=n_jobs)(delayed(func)(*(item + extra)) for item in iterator)
 
 
-def iter_comments():
-    raw_text = mongo_client.sense2vec.raw_text
+def iter_comments(in_collection):
+    raw_text = mongo_client.sense2vec[in_collection]
     for i, item in enumerate(raw_text.find({})):
         print ("processing record #" + str(i+1))
             yield item['text']
@@ -86,7 +85,8 @@ def load_and_transform(batch_id, in_loc, out_dir):
                 out_file.write(transform_doc(doc))
 
 
-def parse_and_transform(batch_id, input_, out_dir):
+def parse_and_transform(batch_id, input_, out_collection):
+    tagged_text = mongo_client.sense2vec[out_collection]
     nlp = spacy.en.English()
     nlp.matcher = None
     tagged_text.insert_one({'text': transform_doc(nlp(strip_meta(input_)))})
@@ -120,15 +120,15 @@ def represent_word(word):
 
 
 @plac.annotations(
-    in_loc=("Location of input folder"),
-    out_dir=("Location of output folder"),
+    input_collection=("Name of MongoDB input collection"),
+    output_collection=("Name of MongoDB output collection"),
     n_workers=("Number of workers", "option", "n", int),
     load_parses=("Load parses from binary", "flag", "b"),
 )
-def main(in_loc, out_dir, n_workers=4, load_parses=False):
-    jobs = iter_comments()
+def main(input_collection, output_collection, n_workers=4, load_parses=False):
+    jobs = iter_comments(input_collection)
     do_work = parse_and_transform
-    parallelize(do_work, enumerate(jobs), n_workers, [out_dir])
+    parallelize(do_work, enumerate(jobs), n_workers, [output_collection])
 
 
 if __name__ == '__main__':
